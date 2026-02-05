@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROX Enchantment Calculator v1.3.0</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css">
+    <style>
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+        .slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        
+        // Icon components - render minimal visible elements
+        const Edit2 = ({ className }) => <span className={className} style={{fontSize: '12px'}}>✎</span>;
+        const ShoppingCart = ({ className }) => null;
+        const Hammer = ({ className }) => null;
+        const TrendingUp = ({ className }) => null;
+        const Calendar = ({ className }) => null;
+        const DollarSign = ({ className }) => null;
+        const BarChart3 = ({ className }) => null;
+        const Clock = ({ className }) => null;
+
+
+const EnchantmentCostCalculator = () => {
+  // Version information
+  const CALCULATOR_VERSION = "1.3.0";
+  const LAST_UPDATED = "2025-02-04";
+  const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQh3geC41v6x5uo4NqaaosDfLykdAfGDVNKngg4YbVjpvwOGgN9L02-W3NIXUWkeAK2x4tk_aTw9x2b/pub?output=csv";
+  
+  // Enchant level experience requirements
+  const enchantLevelExp = {
+    2: 10, 3: 30, 4: 60, 5: 100, 6: 150, 7: 250, 8: 400, 9: 600, 10: 850,
+    11: 1150, 12: 1550, 13: 2050, 14: 2800, 15: 3800, 16: 5050, 17: 6550,
+    18: 8300, 19: 10300, 20: 12550
+  };
+  
+  // Calculate cumulative EXP needed to reach each level
+  const cumulativeExp = {};
+  let total = 0;
+  for (let level = 2; level <= 20; level++) {
+    total += enchantLevelExp[level];
+    cumulativeExp[level] = total;
+  }
+
+  // Default material costs (fallback if Google Sheets fetch fails)
+  const defaultMaterialCosts = {
+    "Sharpening Enchantment Stone": 1320,
+    "Toughening Enchantment Stone": 1320,
+    "Secret Enchantment Stone": 1320,
+    "Blazing Enchantment Stone": 2580,
+    "Hardening Enchantment Stone": 2580,
+    "Gold Enchantment Stone": 2500,
+    "Tidal Enchantment Stone": 5010,
+    "Crystalize Enchantment Stone": 5010,
+    "Glowing Star Enchantment Stone": 5010,
+    "Gloomy Enchantment Stone": 16100,
+    "Petrifying Enchantment Stone": 16100,
+    "Silverspirit Enchantment Stone": 16100,
+    "Cold Enchantment Stone": 32900,
+    "Praying Enchantment Stone": 33800,
+    "Rosecrystal Enchantment Stone": 33800,
+    "Lost Spirit Enchantment Stone": 81400,
+    "Illumination Enchantment Stone": 81400,
+    "Steel Dust Enchantment Stone": 83400,
+    "Lv 1 Muspellium": 66,
+    "Lv 2 Muspellium": 170,
+    "Lv 3 Muspellium": 457,
+    "Lv 4 Muspellium": 1280,
+    "Lv 5 Muspellium": 3390,
+    "Shattering Shroom": 426,
+    "Tough Vine": 507,
+    "Arcane Flower": 457,
+    "Berry": 128,
+    "Desert Tomato": 84,
+    "Goldflower": 583,
+    "Scorched Mushroom": 583,
+    "Withered Chastetree": 525,
+    "Water Seeking Flower": 670,
+    "Sea Gem Grass": 647,
+    "Firefly Grass": 694,
+    "Chrysanthemum": 124,
+    "Singing Plant": 411,
+    "Grim Grass": 824,
+    "Ochre Seedling": 743,
+    "Quiet Flower": 796,
+    "Lavender": 92,
+    "Moonflower": 796,
+    "Praying Flower": 694,
+    "Crystal Rose": 670,
+    "Reminiscence Grass": 164,
+    "Resurrection Leaf": 544,
+    "Radiance Flower": 604,
+    "Coldsteel Orchid": 507,
+    "Corporation Coin": 411
+  };
+
+  // Load saved data from localStorage
+  const loadFromLocalStorage = (key, defaultValue) => {
+    try {
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : defaultValue;
+    } catch (e) {
+      console.error('Error loading from localStorage:', e);
+      return defaultValue;
+    }
+  };
+
+  // Save to localStorage
+  const saveToLocalStorage = (key, value) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+      console.error('Error saving to localStorage:', e);
+    }
+  };
+
+  // Enchant level states (loaded from localStorage)
+  const [weaponLevel, setWeaponLevel] = useState(() => loadFromLocalStorage('enchant_weapon_level', 10));
+  const [armorLevel, setArmorLevel] = useState(() => loadFromLocalStorage('enchant_armor_level', 10));
+  const [accessoryLevel, setAccessoryLevel] = useState(() => loadFromLocalStorage('enchant_accessory_level', 10));
+  
+  // Current experience percentage within current level (0-100)
+  const [weaponExpPercent, setWeaponExpPercent] = useState(() => loadFromLocalStorage('enchant_weapon_exp', 0));
+  const [armorExpPercent, setArmorExpPercent] = useState(() => loadFromLocalStorage('enchant_armor_exp', 0));
+  const [accessoryExpPercent, setAccessoryExpPercent] = useState(() => loadFromLocalStorage('enchant_accessory_exp', 0));
+  
+  // Daily CoC stone selection (loaded from localStorage)
+  const [dailyCocStones, setDailyCocStones] = useState(() => loadFromLocalStorage('enchant_coc_stones', {
+    "Sharpening Enchantment Stone": false,
+    "Toughening Enchantment Stone": false,
+    "Secret Enchantment Stone": false,
+    "Blazing Enchantment Stone": false,
+    "Hardening Enchantment Stone": false,
+    "Gold Enchantment Stone": false,
+    "Tidal Enchantment Stone": true,
+    "Crystalize Enchantment Stone": true,
+    "Glowing Star Enchantment Stone": true,
+    "Gloomy Enchantment Stone": true,
+    "Petrifying Enchantment Stone": true,
+    "Silverspirit Enchantment Stone": true,
+    "Cold Enchantment Stone": false,
+    "Praying Enchantment Stone": false,
+    "Rosecrystal Enchantment Stone": false
+  }));
+
+  // Material costs (will be populated from defaults + localStorage overrides)
+  const [materialCosts, setMaterialCosts] = useState(() => {
+    const overrides = loadFromLocalStorage('enchant_price_overrides', {});
+    return { ...defaultMaterialCosts, ...overrides };
+  });
+  const [localOverrides, setLocalOverrides] = useState(() => loadFromLocalStorage('enchant_price_overrides', {}));
+  const [dataSource, setDataSource] = useState('loading'); // 'loading', 'google-sheets', 'backup'
+
+  // Fetch material costs from Google Sheets
+  useEffect(() => {
+    const fetchMaterialCosts = async () => {
+      try {
+        console.log('Fetching material costs from Google Sheets...');
+        const response = await fetch(GOOGLE_SHEETS_CSV_URL);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const csvText = await response.text();
+        const costs = parseCSV(csvText);
+        
+        if (Object.keys(costs).length === 0) {
+          throw new Error('No data parsed from CSV');
+        }
+        
+        console.log('Successfully loaded material costs from Google Sheets');
+        const overrides = loadFromLocalStorage('enchant_price_overrides', {});
+        setMaterialCosts({ ...costs, ...overrides });
+        setDataSource('google-sheets');
+      } catch (error) {
+        console.error('Error fetching from Google Sheets:', error);
+        console.log('Using backup data instead');
+        setDataSource('backup');
+      }
+    };
+
+    fetchMaterialCosts();
+  }, []);
+
+  // Parse CSV data
+  const parseCSV = (csvText) => {
+    const lines = csvText.trim().split('\n');
+    const costs = {};
+    
+    // Skip header line
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      // Simple CSV parsing (handles basic cases)
+      const lastCommaIndex = line.lastIndexOf(',');
+      if (lastCommaIndex === -1) continue;
+      
+      const material = line.substring(0, lastCommaIndex).trim();
+      const cost = parseInt(line.substring(lastCommaIndex + 1).trim());
+      
+      if (material && !isNaN(cost)) {
+        costs[material] = cost;
+      }
+    }
+    
+    return costs;
+  };
+
+  // Save enchant levels to localStorage when they change
+  useEffect(() => {
+    saveToLocalStorage('enchant_weapon_level', weaponLevel);
+  }, [weaponLevel]);
+
+  useEffect(() => {
+    saveToLocalStorage('enchant_armor_level', armorLevel);
+  }, [armorLevel]);
+
+  useEffect(() => {
+    saveToLocalStorage('enchant_accessory_level', accessoryLevel);
+  }, [accessoryLevel]);
+
+  useEffect(() => {
+    saveToLocalStorage('enchant_weapon_exp', weaponExpPercent);
+  }, [weaponExpPercent]);
+
+  useEffect(() => {
+    saveToLocalStorage('enchant_armor_exp', armorExpPercent);
+  }, [armorExpPercent]);
+
+  useEffect(() => {
+    saveToLocalStorage('enchant_accessory_exp', accessoryExpPercent);
+  }, [accessoryExpPercent]);
+
+  useEffect(() => {
+    saveToLocalStorage('enchant_coc_stones', dailyCocStones);
+  }, [dailyCocStones]);
+
+  // CoC crystal cost is derived from material costs
+  const cocCrystalCost = materialCosts["Corporation Coin"] || 490;
+
+  // Probability data organized by city/equipment/level
+  const probabilityData = {
+    "Prontera": {
+      "Weapon": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.0373,"11Infinity12":0.0277,"12Infinity13":0.0209,"13Infinity14":0.0153,"14Infinity15":0.0113,"15Infinity16":0.0085,"16Infinity17":0.0065,"17Infinity18":0.0052,"18Infinity19":0.0042,"19Infinity20":0.0034,"20":0.0034},
+      "Armor": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.0373,"11Infinity12":0.0277,"12Infinity13":0.0209,"13Infinity14":0.0153,"14Infinity15":0.0113,"15Infinity16":0.0085,"16Infinity17":0.0065,"17Infinity18":0.0052,"18Infinity19":0.0042,"19Infinity20":0.0034,"20":0.0034},
+      "Accessory": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.0373,"11Infinity12":0.0277,"12Infinity13":0.0209,"13Infinity14":0.0153,"14Infinity15":0.0113,"15Infinity16":0.0085,"16Infinity17":0.0065,"17Infinity18":0.0052,"18Infinity19":0.0042,"19Infinity20":0.0034,"20":0.0034}
+    },
+    "Izlude": {
+      "Weapon": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.0383,"11Infinity12":0.0284,"12Infinity13":0.0215,"13Infinity14":0.0157,"14Infinity15":0.0116,"15Infinity16":0.0087,"16Infinity17":0.0067,"17Infinity18":0.0053,"18Infinity19":0.0043,"19Infinity20":0.0035,"20":0.0035},
+      "Armor": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.0383,"11Infinity12":0.0284,"12Infinity13":0.0215,"13Infinity14":0.0157,"14Infinity15":0.0116,"15Infinity16":0.0087,"16Infinity17":0.0067,"17Infinity18":0.0053,"18Infinity19":0.0043,"19Infinity20":0.0035,"20":0.0035},
+      "Accessory": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.0388,"10Infinity11":0.0287,"11Infinity12":0.0213,"12Infinity13":0.0161,"13Infinity14":0.0118,"14Infinity15":0.0087,"15Infinity16":0.0065,"16Infinity17":0.005,"17Infinity18":0.004,"18Infinity19":0.0032,"19Infinity20":0.0026,"20":0.0026}
+    },
+    "Morroc": {
+      "Weapon": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.0437,"12Infinity13":0.033,"13Infinity14":0.0242,"14Infinity15":0.0178,"15Infinity16":0.0134,"16Infinity17":0.0103,"17Infinity18":0.0082,"18Infinity19":0.0066,"19Infinity20":0.0054,"20":0.0054},
+      "Armor": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.0413,"13Infinity14":0.0302,"14Infinity15":0.0223,"15Infinity16":0.0168,"16Infinity17":0.0129,"17Infinity18":0.0102,"18Infinity19":0.0082,"19Infinity20":0.0067,"20":0.0067},
+      "Accessory": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.0413,"13Infinity14":0.0302,"14Infinity15":0.0223,"15Infinity16":0.0168,"16Infinity17":0.0129,"17Infinity18":0.0102,"18Infinity19":0.0082,"19Infinity20":0.0067,"20":0.0067}
+    },
+    "Alberta": {
+      "Weapon": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.0434,"14Infinity15":0.0321,"15Infinity16":0.0241,"16Infinity17":0.0185,"17Infinity18":0.0147,"18Infinity19":0.012,"19Infinity20":0.01,"20":0.01},
+      "Armor": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.0434,"14Infinity15":0.0321,"15Infinity16":0.0241,"16Infinity17":0.0185,"17Infinity18":0.0147,"18Infinity19":0.012,"19Infinity20":0.01,"20":0.01},
+      "Accessory": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.0434,"14Infinity15":0.0321,"15Infinity16":0.0241,"16Infinity17":0.0185,"17Infinity18":0.0147,"18Infinity19":0.012,"19Infinity20":0.01,"20":0.01}
+    },
+    "Payon": {
+      "Weapon": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.0456,"15Infinity16":0.0341,"16Infinity17":0.0264,"17Infinity18":0.0211,"18Infinity19":0.0174,"19Infinity20":0.0148,"20":0.0148},
+      "Armor": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.0456,"15Infinity16":0.0341,"16Infinity17":0.0264,"17Infinity18":0.0211,"18Infinity19":0.0174,"19Infinity20":0.0148,"20":0.0148},
+      "Accessory": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.0456,"15Infinity16":0.0341,"16Infinity17":0.0264,"17Infinity18":0.0211,"18Infinity19":0.0174,"19Infinity20":0.0148,"20":0.0148}
+    },
+    "Geffen": {
+      "Weapon": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.05,"15Infinity16":0.0476,"16Infinity17":0.0367,"17Infinity18":0.029,"18Infinity19":0.0233,"19Infinity20":0.0191,"20":0.0191},
+      "Armor": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.05,"15Infinity16":0.0476,"16Infinity17":0.0367,"17Infinity18":0.029,"18Infinity19":0.0233,"19Infinity20":0.0191,"20":0.0191},
+      "Accessory": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.05,"15Infinity16":0.0476,"16Infinity17":0.0367,"17Infinity18":0.029,"18Infinity19":0.0233,"19Infinity20":0.0191,"20":0.0191}
+    },
+    "Glast_Heim": {
+      "Weapon": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.05,"15Infinity16":0.05,"16Infinity17":0.05,"17Infinity18":0.0445,"18Infinity19":0.0359,"19Infinity20":0.0295,"20":0.0295},
+      "Armor": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.05,"15Infinity16":0.05,"16Infinity17":0.05,"17Infinity18":0.0445,"18Infinity19":0.0359,"19Infinity20":0.0295,"20":0.0295},
+      "Accessory": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.05,"15Infinity16":0.05,"16Infinity17":0.05,"17Infinity18":0.0445,"18Infinity19":0.0359,"19Infinity20":0.0295,"20":0.0295}
+    },
+    "Al_De_Baran": {
+      "Weapon": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.05,"15Infinity16":0.05,"16Infinity17":0.05,"17Infinity18":0.0457,"18Infinity19":0.0368,"19Infinity20":0.0302,"20":0.0302},
+      "Armor": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.05,"15Infinity16":0.05,"16Infinity17":0.05,"17Infinity18":0.05,"18Infinity19":0.046,"19Infinity20":0.0378,"20":0.0378},
+      "Accessory": {"1Infinity2":0.05,"2Infinity3":0.05,"3Infinity4":0.05,"4Infinity5":0.05,"5Infinity6":0.05,"6Infinity7":0.05,"7Infinity8":0.05,"8Infinity9":0.05,"9Infinity10":0.05,"10Infinity11":0.05,"11Infinity12":0.05,"12Infinity13":0.05,"13Infinity14":0.05,"14Infinity15":0.05,"15Infinity16":0.05,"16Infinity17":0.05,"17Infinity18":0.0457,"18Infinity19":0.0368,"19Infinity20":0.0302,"20":0.0302}
+    }
+  };
+
+  const [editingMaterial, setEditingMaterial] = useState(null);
+  const [editValue, setEditValue] = useState('');
+
+  // Stone recipes
+  const stoneRecipes = {
+    "Sharpening Enchantment Stone": { mat1: "Lv 1 Muspellium", mat1_qty: 5, mat2: "Shattering Shroom", mat2_qty: 1 },
+    "Toughening Enchantment Stone": { mat1: "Lv 1 Muspellium", mat1_qty: 5, mat2: "Tough Vine", mat2_qty: 1 },
+    "Secret Enchantment Stone": { mat1: "Lv 1 Muspellium", mat1_qty: 5, mat2: "Arcane Flower", mat2_qty: 1 },
+    "Blazing Enchantment Stone": { mat1: "Lv 2 Muspellium", mat1_qty: 8, mat2: "Goldflower", mat2_qty: 1 },
+    "Hardening Enchantment Stone": { mat1: "Lv 2 Muspellium", mat1_qty: 8, mat2: "Scorched Mushroom", mat2_qty: 1 },
+    "Gold Enchantment Stone": { mat1: "Lv 2 Muspellium", mat1_qty: 8, mat2: "Withered Chastetree", mat2_qty: 1 },
+    "Tidal Enchantment Stone": { mat1: "Lv 3 Muspellium", mat1_qty: 6, mat2: "Water Seeking Flower", mat2_qty: 3 },
+    "Crystalize Enchantment Stone": { mat1: "Lv 3 Muspellium", mat1_qty: 6, mat2: "Sea Gem Grass", mat2_qty: 3 },
+    "Glowing Star Enchantment Stone": { mat1: "Lv 3 Muspellium", mat1_qty: 6, mat2: "Firefly Grass", mat2_qty: 3 },
+    "Gloomy Enchantment Stone": { mat1: "Lv 4 Muspellium", mat1_qty: 8, mat2: "Grim Grass", mat2_qty: 4 },
+    "Petrifying Enchantment Stone": { mat1: "Lv 4 Muspellium", mat1_qty: 8, mat2: "Ochre Seedling", mat2_qty: 4 },
+    "Silverspirit Enchantment Stone": { mat1: "Lv 4 Muspellium", mat1_qty: 8, mat2: "Quiet Flower", mat2_qty: 4 },
+    "Cold Enchantment Stone": { mat1: "Lv 4 Muspellium", mat1_qty: 18, mat2: "Moonflower", mat2_qty: 7 },
+    "Praying Enchantment Stone": { mat1: "Lv 4 Muspellium", mat1_qty: 18, mat2: "Praying Flower", mat2_qty: 7 },
+    "Rosecrystal Enchantment Stone": { mat1: "Lv 4 Muspellium", mat1_qty: 18, mat2: "Crystal Rose", mat2_qty: 7 },
+    "Lost Spirit Enchantment Stone": { mat1: "Lv 5 Muspellium", mat1_qty: 18, mat2: "Resurrection Leaf", mat2_qty: 14 },
+    "Illumination Enchantment Stone": { mat1: "Lv 5 Muspellium", mat1_qty: 18, mat2: "Radiance Flower", mat2_qty: 14 },
+    "Steel Dust Enchantment Stone": { mat1: "Lv 5 Muspellium", mat1_qty: 18, mat2: "Coldsteel Orchid", mat2_qty: 14 }
+  };
+
+  // City mapping for probabilities
+  const cityProbMapping = {
+    "Prontera": "Prontera",
+    "Izlude": "Izlude",
+    "Morroc": "Morroc",
+    "Alberta": "Alberta",
+    "Payon": "Payon",
+    "Geffen": "Geffen",
+    "Glast Heim": "Glast_Heim",
+    "Al De Baran": "Al_De_Baran"
+  };
+
+  // City point values for enchanting
+  const cityPoints = {
+    "Prontera": 1,
+    "Izlude": 1,
+    "Morroc": 2,
+    "Alberta": 4,
+    "Payon": 8,
+    "Geffen": 16,
+    "Glast Heim": 32
+  };
+  
+  // Equipment type point multipliers
+  const equipTypeMultipliers = {
+    "Weapon (2h)": 3,
+    "Weapon (1h)": 2,
+    "Weapon (offhand)": 1,
+    "Armor": 1,
+    "Accessory": 1
+  };
+
+  // Corporation Coin costs for stones (cost in CoC coins per stone)
+  const cocCosts = {
+    "Sharpening Enchantment Stone": 3,
+    "Toughening Enchantment Stone": 3,
+    "Secret Enchantment Stone": 3,
+    "Blazing Enchantment Stone": 6,
+    "Hardening Enchantment Stone": 6,
+    "Gold Enchantment Stone": 6,
+    "Tidal Enchantment Stone": 10,
+    "Crystalize Enchantment Stone": 10,
+    "Glowing Star Enchantment Stone": 10,
+    "Gloomy Enchantment Stone": 20,
+    "Petrifying Enchantment Stone": 20,
+    "Silverspirit Enchantment Stone": 20,
+    "Cold Enchantment Stone": 45,
+    "Praying Enchantment Stone": 45,
+    "Rosecrystal Enchantment Stone": 45,
+    "Lost Spirit Enchantment Stone": 0,
+    "Illumination Enchantment Stone": 0,
+    "Steel Dust Enchantment Stone": 0
+  };
+
+  // Daily smelting limit
+  const DAILY_SMELT_LIMIT = 200;
+
+  // City enchant requirements
+  const cityEnchants = [
+    { city: "Prontera", type: "Weapon (2h)", stone: "Lv 1 Muspellium", qty: 30, equipType: "Weapon", isProntera: true },
+    { city: "Prontera", type: "Weapon (1h)", stone: "Lv 1 Muspellium", qty: 30, equipType: "Weapon", isProntera: true },
+    { city: "Prontera", type: "Weapon (offhand)", stone: "Lv 1 Muspellium", qty: 30, equipType: "Weapon", isProntera: true },
+    { city: "Prontera", type: "Armor", stone: "Lv 1 Muspellium", qty: 30, equipType: "Armor", isProntera: true },
+    { city: "Prontera", type: "Accessory", stone: "Lv 1 Muspellium", qty: 30, equipType: "Accessory", isProntera: true },
+    { city: "Izlude", type: "Weapon (2h)", stone: "Sharpening Enchantment Stone", qty: 6, equipType: "Weapon" },
+    { city: "Izlude", type: "Weapon (1h)", stone: "Sharpening Enchantment Stone", qty: 4, equipType: "Weapon" },
+    { city: "Izlude", type: "Weapon (offhand)", stone: "Sharpening Enchantment Stone", qty: 2, equipType: "Weapon" },
+    { city: "Izlude", type: "Armor", stone: "Toughening Enchantment Stone", qty: 2, equipType: "Armor" },
+    { city: "Izlude", type: "Accessory", stone: "Secret Enchantment Stone", qty: 2, equipType: "Accessory" },
+    { city: "Morroc", type: "Weapon (2h)", stone: "Blazing Enchantment Stone", qty: 6, equipType: "Weapon" },
+    { city: "Morroc", type: "Weapon (1h)", stone: "Blazing Enchantment Stone", qty: 4, equipType: "Weapon" },
+    { city: "Morroc", type: "Weapon (offhand)", stone: "Blazing Enchantment Stone", qty: 2, equipType: "Weapon" },
+    { city: "Morroc", type: "Armor", stone: "Hardening Enchantment Stone", qty: 2, equipType: "Armor" },
+    { city: "Morroc", type: "Accessory", stone: "Gold Enchantment Stone", qty: 2, equipType: "Accessory" },
+    { city: "Alberta", type: "Weapon (2h)", stone: "Tidal Enchantment Stone", qty: 6, equipType: "Weapon" },
+    { city: "Alberta", type: "Weapon (1h)", stone: "Tidal Enchantment Stone", qty: 4, equipType: "Weapon" },
+    { city: "Alberta", type: "Weapon (offhand)", stone: "Tidal Enchantment Stone", qty: 2, equipType: "Weapon" },
+    { city: "Alberta", type: "Armor", stone: "Crystalize Enchantment Stone", qty: 2, equipType: "Armor" },
+    { city: "Alberta", type: "Accessory", stone: "Glowing Star Enchantment Stone", qty: 2, equipType: "Accessory" },
+    { city: "Payon", type: "Weapon (2h)", stone: "Gloomy Enchantment Stone", qty: 6, equipType: "Weapon" },
+    { city: "Payon", type: "Weapon (1h)", stone: "Gloomy Enchantment Stone", qty: 4, equipType: "Weapon" },
+    { city: "Payon", type: "Weapon (offhand)", stone: "Gloomy Enchantment Stone", qty: 2, equipType: "Weapon" },
+    { city: "Payon", type: "Armor", stone: "Petrifying Enchantment Stone", qty: 2, equipType: "Armor" },
+    { city: "Payon", type: "Accessory", stone: "Silverspirit Enchantment Stone", qty: 2, equipType: "Accessory" },
+    { city: "Geffen", type: "Weapon (2h)", stone: "Cold Enchantment Stone", qty: 6, equipType: "Weapon" },
+    { city: "Geffen", type: "Weapon (1h)", stone: "Cold Enchantment Stone", qty: 4, equipType: "Weapon" },
+    { city: "Geffen", type: "Weapon (offhand)", stone: "Cold Enchantment Stone", qty: 2, equipType: "Weapon" },
+    { city: "Geffen", type: "Armor", stone: "Praying Enchantment Stone", qty: 2, equipType: "Armor" },
+    { city: "Geffen", type: "Accessory", stone: "Rosecrystal Enchantment Stone", qty: 2, equipType: "Accessory" },
+    { city: "Glast Heim", type: "Weapon (2h)", stone: "Lost Spirit Enchantment Stone", qty: 6, equipType: "Weapon" },
+    { city: "Glast Heim", type: "Weapon (1h)", stone: "Lost Spirit Enchantment Stone", qty: 4, equipType: "Weapon" },
+    { city: "Glast Heim", type: "Weapon (offhand)", stone: "Lost Spirit Enchantment Stone", qty: 2, equipType: "Weapon" },
+    { city: "Glast Heim", type: "Armor", stone: "Illumination Enchantment Stone", qty: 2, equipType: "Armor" },
+    { city: "Glast Heim", type: "Accessory", stone: "Steel Dust Enchantment Stone", qty: 2, equipType: "Accessory" }
+  ];
+
+  // Get gold probability for a specific city/equipment/level
+  const getGoldProbability = (city, equipType, level) => {
+    const probCity = cityProbMapping[city];
+    if (!probCity || !probabilityData[probCity]) return 0.05;
+    
+    const equipData = probabilityData[probCity][equipType];
+    if (!equipData) return 0.05;
+    
+    const levelKey = `${level}Infinity${level+1}`;
+    if (equipData[levelKey]) return equipData[levelKey];
+    if (equipData[level.toString()]) return equipData[level.toString()];
+    if (equipData["20"]) return equipData["20"];
+    
+    return 0.05;
+  };
+
+  // Calculate craft cost for a stone
+  const calculateCraftCost = (stoneName) => {
+    const recipe = stoneRecipes[stoneName];
+    if (!recipe) return 0;
+    
+    const mat1Cost = materialCosts[recipe.mat1] * recipe.mat1_qty;
+    const mat2Cost = materialCosts[recipe.mat2] * recipe.mat2_qty;
+    return mat1Cost + mat2Cost;
+  };
+
+  // Calculate costs for the table
+  const enchantCostData = useMemo(() => {
+    return cityEnchants.map(enchant => {
+      let currentLevel = weaponLevel;
+      if (enchant.equipType === 'Armor') currentLevel = armorLevel;
+      if (enchant.equipType === 'Accessory') currentLevel = accessoryLevel;
+      
+      const goldProb = getGoldProbability(enchant.city, enchant.equipType, currentLevel);
+      
+      let purchaseCost, smeltCost, craftCostPerStone;
+      
+      if (enchant.isProntera) {
+        const lv1MuspCost = materialCosts["Lv 1 Muspellium"];
+        purchaseCost = lv1MuspCost * enchant.qty;
+        smeltCost = purchaseCost;
+        craftCostPerStone = lv1MuspCost;
+      } else {
+        purchaseCost = materialCosts[enchant.stone] * enchant.qty;
+        craftCostPerStone = calculateCraftCost(enchant.stone);
+        smeltCost = craftCostPerStone * enchant.qty;
+      }
+      
+      const savings = purchaseCost - smeltCost;
+      const savingsPct = purchaseCost > 0 ? (savings / purchaseCost * 100) : 0;
+      
+      const cocCoinCost = enchant.isProntera ? 0 : (cocCosts[enchant.stone] || 0) * Math.min(5, enchant.qty);
+      const cocXtalCost = cocCoinCost * cocCrystalCost;
+      const cocSavingsVsPurchase = enchant.isProntera ? 0 : (materialCosts[enchant.stone] * Math.min(5, enchant.qty)) - cocXtalCost;
+      const cocSavingsVsSmelt = enchant.isProntera ? 0 : (craftCostPerStone * Math.min(5, enchant.qty)) - cocXtalCost;
+      
+      const basePoints = enchant.isProntera ? 1 : (cityPoints[enchant.city] || 0);
+      const pointMultiplier = enchant.isProntera ? 1 : (equipTypeMultipliers[enchant.type] || 1);
+      const pointsPerAttempt = basePoints * pointMultiplier;
+      
+      const costPerAttempt = smeltCost;
+      const expectedAttempts = goldProb > 0 ? 1 / goldProb : Infinity;
+      const expectedCostForGold = costPerAttempt * expectedAttempts;
+      const expectedPointsForGold = pointsPerAttempt * expectedAttempts;
+      
+      const xtalPerPoint = pointsPerAttempt > 0 ? costPerAttempt / pointsPerAttempt : Infinity;
+      const pointsPerXtal = pointsPerAttempt > 0 ? pointsPerAttempt / costPerAttempt : 0;
+      
+      return {
+        ...enchant,
+        purchaseCost,
+        smeltCost,
+        savings,
+        savingsPct,
+        craftCostPerStone,
+        goldProb,
+        expectedAttempts,
+        expectedCostForGold,
+        currentLevel,
+        pointsPerAttempt,
+        expectedPointsForGold,
+        xtalPerPoint,
+        pointsPerXtal,
+        cocCoinCost,
+        cocXtalCost,
+        cocSavingsVsPurchase,
+        cocSavingsVsSmelt
+      };
+    });
+  }, [materialCosts, weaponLevel, armorLevel, accessoryLevel, cocCrystalCost]);
+
+  // Calculate leveling costs by city for each equipment type
+  const levelingCostsByCity = useMemo(() => {
+    const results = {
+      weapon: [],
+      armor: [],
+      accessory: []
+    };
+
+    const equipmentTypes = [
+      { key: 'weapon', level: weaponLevel, expPercent: weaponExpPercent, typeKey: 'Weapon (offhand)' },
+      { key: 'armor', level: armorLevel, expPercent: armorExpPercent, typeKey: 'Armor' },
+      { key: 'accessory', level: accessoryLevel, expPercent: accessoryExpPercent, typeKey: 'Accessory' }
+    ];
+
+    equipmentTypes.forEach(({ key, level, expPercent, typeKey }) => {
+      if (level >= 20) {
+        results[key] = [];
+        return;
+      }
+
+      const nextLevel = level + 1;
+      const totalExpForNextLevel = enchantLevelExp[nextLevel] || 0;
+      const currentExp = Math.round((expPercent / 100) * totalExpForNextLevel);
+      const expNeeded = totalExpForNextLevel - currentExp;
+
+      const cityOptions = enchantCostData
+        .filter(row => row.type === typeKey)
+        .map(option => {
+          const attemptsNeeded = expNeeded / option.pointsPerAttempt;
+          const purchaseCost = attemptsNeeded * option.purchaseCost;
+          const smeltCost = attemptsNeeded * option.smeltCost;
+          
+          const stonesNeeded = attemptsNeeded * option.qty;
+          const daysToLevelSmelt = option.isProntera ? 0 : stonesNeeded / DAILY_SMELT_LIMIT;
+          
+          const cocAvailable = option.cocCoinCost > 0;
+          const stonesPerAttempt = option.qty;
+          const cocStonesPerDay = 5;
+          const attemptsPerDay = cocAvailable ? Math.floor(cocStonesPerDay / stonesPerAttempt) : 0;
+          const pointsPerDay = attemptsPerDay * option.pointsPerAttempt;
+          const daysNeeded = pointsPerDay > 0 ? expNeeded / pointsPerDay : Infinity;
+          
+          const cocCostPerDay = option.cocXtalCost;
+          const totalCocCost = cocAvailable ? daysNeeded * cocCostPerDay : Infinity;
+          
+          return {
+            city: option.city,
+            stone: option.stone,
+            attemptsNeeded: attemptsNeeded,
+            purchaseCost: purchaseCost,
+            smeltCost: smeltCost,
+            pointsPerAttempt: option.pointsPerAttempt,
+            cocAvailable: cocAvailable,
+            daysNeeded: daysNeeded,
+            totalCocCost: totalCocCost,
+            cocCostPerDay: cocCostPerDay,
+            attemptsPerDay: attemptsPerDay,
+            expNeeded: expNeeded,
+            stonesNeeded: stonesNeeded,
+            daysToLevelSmelt: daysToLevelSmelt,
+            isProntera: option.isProntera
+          };
+        });
+
+      results[key] = cityOptions.sort((a, b) => a.smeltCost - b.smeltCost);
+    });
+
+    return results;
+  }, [enchantCostData, weaponLevel, armorLevel, accessoryLevel, weaponExpPercent, armorExpPercent, accessoryExpPercent, enchantLevelExp, cocCrystalCost]);
+
+  const handleEditClick = (material) => {
+    setEditingMaterial(material);
+    setEditValue(materialCosts[material].toString());
+  };
+
+  const handleSaveEdit = () => {
+    if (editingMaterial && editValue) {
+      const newValue = parseInt(editValue);
+      if (!isNaN(newValue) && newValue >= 0) {
+        // Update material costs
+        setMaterialCosts(prev => ({
+          ...prev,
+          [editingMaterial]: newValue
+        }));
+        
+        // Save as local override
+        const newOverrides = {
+          ...localOverrides,
+          [editingMaterial]: newValue
+        };
+        setLocalOverrides(newOverrides);
+        saveToLocalStorage('enchant_price_overrides', newOverrides);
+      }
+    }
+    setEditingMaterial(null);
+    setEditValue('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMaterial(null);
+    setEditValue('');
+  };
+
+  const handleResetPrices = () => {
+    if (confirm('Reset all prices to defaults? This will remove all your custom price edits.')) {
+      setLocalOverrides({});
+      saveToLocalStorage('enchant_price_overrides', {});
+      window.location.reload();
+    }
+  };
+
+  const editableMaterials = Object.entries(materialCosts)
+    .filter(([name]) => 
+      name.includes('Muspellium') || 
+      name.includes('Shroom') || 
+      name.includes('Vine') || 
+      name.includes('Flower') || 
+      name.includes('Grass') || 
+      name.includes('Seedling') || 
+      name.includes('Chastetree') || 
+      name.includes('Leaf') || 
+      name.includes('Orchid') || 
+      name.includes('Rose') ||
+      name.includes('Corporation Coin'))
+    .sort((a, b) => a[0].localeCompare(b[0]));
+
+  return (
+    <div className="w-full max-w-7xl mx-auto p-6 bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="mb-8">
+        <div className="flex justify-between items-start mb-2">
+          <h1 className="text-3xl font-bold text-slate-800">Enchantment Cost Calculator</h1>
+          <div className="text-right">
+            <div className="text-xs font-semibold text-slate-500">Version {CALCULATOR_VERSION}</div>
+            <div className="text-xs text-slate-400">Updated: {LAST_UPDATED}</div>
+            <div className={`text-xs font-semibold mt-1 ${
+              dataSource === 'google-sheets' ? 'text-green-600' : 
+              dataSource === 'backup' ? 'text-amber-600' : 
+              'text-blue-600'
+            }`}>
+              {dataSource === 'loading' ? ' Loading data...' : 
+               dataSource === 'google-sheets' ? ' Live from Google Sheets' : 
+               ' Using backup data'}
+            </div>
+          </div>
+        </div>
+        <p className="text-slate-600">Set enchant levels and material costs to analyze purchase vs smelting efficiency</p>
+      </div>
+
+      {/* Enchant Level Inputs */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5" />
+          Current Enchant Levels
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[
+            { label: 'Weapon', level: weaponLevel, setLevel: setWeaponLevel, expPercent: weaponExpPercent, setExpPercent: setWeaponExpPercent },
+            { label: 'Armor', level: armorLevel, setLevel: setArmorLevel, expPercent: armorExpPercent, setExpPercent: setArmorExpPercent },
+            { label: 'Accessory', level: accessoryLevel, setLevel: setAccessoryLevel, expPercent: accessoryExpPercent, setExpPercent: setAccessoryExpPercent }
+          ].map(({ label, level, setLevel, expPercent, setExpPercent }) => {
+            const currentLevelExp = enchantLevelExp[level + 1] || 0;
+            const currentExp = Math.round((expPercent / 100) * currentLevelExp);
+            
+            return (
+              <div key={label}>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  {label} Enchant Level
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={level}
+                  onChange={(e) => setLevel(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                  className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-semibold"
+                />
+                <p className="text-xs text-slate-500 mt-1">Range: 1-20</p>
+                
+                {level < 20 && (
+                  <div className="mt-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs font-semibold text-slate-600">Progress to Level {level + 1}</span>
+                      <span className="text-xs font-bold text-blue-600">{expPercent}%</span>
+                    </div>
+                    <div className="relative">
+                      <div className="w-full h-6 bg-slate-200 rounded-lg overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-300"
+                          style={{ width: `${expPercent}%` }}
+                        />
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xs font-semibold text-slate-700 drop-shadow">
+                          {currentExp.toLocaleString()} / {currentLevelExp.toLocaleString()} EXP
+                        </span>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={expPercent}
+                      onChange={(e) => setExpPercent(parseInt(e.target.value))}
+                      className="w-full mt-2 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer slider"
+                      style={{
+                        background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${expPercent}%, #e2e8f0 ${expPercent}%, #e2e8f0 100%)`
+                      }}
+                    />
+                    <p className="text-xs text-slate-500 mt-1 text-center">Slide to adjust current EXP progress</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* CoC Configuration */}
+      <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-lg shadow-md p-6 mb-6 border-2 border-amber-200">
+        <h2 className="text-xl font-bold text-amber-900 mb-4 flex items-center gap-2">
+          <DollarSign className="w-5 h-5" />
+          Corporation Coin (CoC) Configuration
+        </h2>
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-amber-900 mb-2">
+            Crystal Cost per CoC
+          </label>
+          <div className="text-lg font-bold text-amber-900 mb-2">
+            {cocCrystalCost.toLocaleString()} crystals
+          </div>
+          <p className="text-xs text-amber-700">Loaded from market data  Daily limit: 5 stones per type</p>
+        </div>
+
+        <div>
+          <h3 className="text-lg font-bold text-amber-900 mb-3"> Daily CoC Stone Purchases</h3>
+          <p className="text-sm text-amber-700 mb-4">Select which stones to buy daily with CoC. The cost breakdown table below will show days needed and total cost to level up using your selected stones.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Object.entries(cocCosts)
+              .filter(([stone, cost]) => cost > 0)
+              .map(([stone, cost]) => (
+                <label key={stone} className="flex items-center gap-3 p-3 bg-white rounded-lg border-2 border-amber-200 cursor-pointer hover:bg-amber-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={dailyCocStones[stone] || false}
+                    onChange={(e) => setDailyCocStones(prev => ({
+                      ...prev,
+                      [stone]: e.target.checked
+                    }))}
+                    className="w-5 h-5 text-amber-600 rounded focus:ring-2 focus:ring-amber-500"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-slate-800">{stone}</div>
+                    <div className="text-xs text-amber-700">{cost} CoC x 5 = {(cost * 5 * cocCrystalCost).toLocaleString()} xtal/day</div>
+                  </div>
+                </label>
+              ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Leveling Cost Visualization by City/Stone */}
+      <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg shadow-md p-6 mb-6 border-2 border-purple-200">
+        <h2 className="text-xl font-bold text-purple-900 mb-4 flex items-center gap-2">
+          <Clock className="w-5 h-5" />
+          Cost & Time to Reach Next Level by City & Stone
+        </h2>
+        <div className="mb-4 p-3 bg-blue-100 rounded-lg border border-blue-300">
+          <p className="text-sm text-blue-900">
+            <strong>Smelting Limit:</strong> {DAILY_SMELT_LIMIT} stones per day - Time estimates show days needed based on this limit
+          </p>
+        </div>
+        
+        {['weapon', 'armor', 'accessory'].map((equipKey) => {
+          const equipLabel = equipKey.charAt(0).toUpperCase() + equipKey.slice(1);
+          const levelInfo = equipKey === 'weapon' ? { level: weaponLevel, expPercent: weaponExpPercent } :
+                           equipKey === 'armor' ? { level: armorLevel, expPercent: armorExpPercent } :
+                           { level: accessoryLevel, expPercent: accessoryExpPercent };
+          
+          const options = levelingCostsByCity[equipKey];
+          
+          if (levelInfo.level >= 20) {
+            return (
+              <div key={equipKey} className="mb-6">
+                <h3 className="text-lg font-bold text-purple-800 mb-3">{equipLabel} (Level {levelInfo.level})</h3>
+                <div className="bg-white rounded-lg p-6 text-center border-2 border-purple-300">
+                  <span className="text-xl font-bold text-purple-700">MAX LEVEL REACHED</span>
+                </div>
+              </div>
+            );
+          }
+
+          const nextLevel = levelInfo.level + 1;
+          const totalExpForNextLevel = enchantLevelExp[nextLevel] || 0;
+          const currentExp = Math.round((levelInfo.expPercent / 100) * totalExpForNextLevel);
+          const expNeeded = totalExpForNextLevel - currentExp;
+
+          const selectedStones = options.filter(opt => opt.cocAvailable && dailyCocStones[opt.stone]);
+          let totalPointsPerDay = 0;
+          let totalCocCostPerDay = 0;
+          
+          selectedStones.forEach(opt => {
+            totalPointsPerDay += opt.attemptsPerDay * opt.pointsPerAttempt;
+            totalCocCostPerDay += opt.cocCostPerDay;
+          });
+          
+          const combinedDaysToLevel = totalPointsPerDay > 0 ? expNeeded / totalPointsPerDay : Infinity;
+          const combinedTotalCost = combinedDaysToLevel * totalCocCostPerDay;
+
+          return (
+            <div key={equipKey} className="mb-6">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-lg font-bold text-purple-800">{equipLabel} (Level {levelInfo.level} Infinity {nextLevel})</h3>
+                <span className="text-sm text-purple-700 font-semibold">{expNeeded.toLocaleString()} EXP needed</span>
+              </div>
+              
+              {selectedStones.length > 0 ? (
+                <div className="bg-gradient-to-br from-amber-100 to-yellow-100 rounded-lg p-4 mb-3 border-2 border-amber-300">
+                  <h4 className="text-sm font-bold text-amber-900 mb-2"> Daily CoC Leveling Summary</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs text-amber-700">Stones Selected</div>
+                      <div className="font-bold text-amber-900">{selectedStones.length}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-amber-700">Points/Day</div>
+                      <div className="font-bold text-amber-900">{totalPointsPerDay.toFixed(1)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-amber-700">Days to Level</div>
+                      <div className="font-bold text-purple-900 text-base">
+                        {combinedDaysToLevel === Infinity ? 'Infinity' : combinedDaysToLevel.toFixed(1)} days
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-amber-700">Total CoC Cost</div>
+                      <div className="font-bold text-purple-900 text-base">
+                        {combinedTotalCost === Infinity ? 'Infinity' : 
+                          combinedTotalCost < 1000000 ? combinedTotalCost.toLocaleString() + ' xtal' :
+                          (combinedTotalCost / 1000000).toFixed(2) + 'M xtal'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs text-amber-800">
+                    <strong>Selected stones:</strong> {selectedStones.map(s => s.stone).join(', ')}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-100 rounded-lg p-3 mb-3 border border-slate-300">
+                  <p className="text-sm text-slate-600 italic">
+                    No CoC stones selected. Check stones in the CoC Configuration section above to see daily leveling calculations.
+                  </p>
+                </div>
+              )}
+              
+              <div className="bg-white rounded-lg overflow-hidden border-2 border-purple-300">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[500px]">
+                    <thead className="bg-purple-100">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-bold text-purple-900 whitespace-nowrap">City</th>
+                        <th className="px-3 py-2 text-left text-xs font-bold text-purple-900 whitespace-nowrap">Stone</th>
+                        <th className="px-3 py-2 text-right text-xs font-bold text-green-900 bg-green-50 whitespace-nowrap">Smelt Cost</th>
+                        <th className="px-3 py-2 text-right text-xs font-bold text-blue-900 bg-blue-50 whitespace-nowrap">Purchase Cost</th>
+                        <th className="px-3 py-2 text-right text-xs font-bold text-orange-900 bg-orange-50 whitespace-nowrap">Days to Level</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-purple-200">
+                      {options.map((option, idx) => {
+                        const isBestSmelt = idx === 0;
+                        
+                        return (
+                          <tr key={idx} className={`hover:bg-purple-50 ${isBestSmelt ? 'bg-green-50' : ''}`}>
+                            <td className="px-3 py-2 font-semibold text-purple-900 whitespace-nowrap">
+                              {option.city}
+                              {isBestSmelt && <span className="ml-2 text-xs bg-green-600 text-white px-2 py-0.5 rounded">BEST</span>}
+                            </td>
+                            <td className="px-3 py-2 text-slate-700 text-xs whitespace-nowrap">
+                              {option.stone}
+                              {dailyCocStones[option.stone] && <span className="ml-2 text-xs bg-amber-500 text-white px-2 py-0.5 rounded">CoC </span>}
+                            </td>
+                            <td className="px-3 py-2 text-right font-bold text-green-700 bg-green-50 whitespace-nowrap">
+                              {option.smeltCost < 1000000 
+                                ? option.smeltCost.toLocaleString() + ' xtal'
+                                : (option.smeltCost / 1000000).toFixed(2) + 'M xtal'}
+                            </td>
+                            <td className="px-3 py-2 text-right font-bold text-blue-700 bg-blue-50 whitespace-nowrap">
+                              {option.purchaseCost < 1000000 
+                                ? option.purchaseCost.toLocaleString() + ' xtal'
+                                : (option.purchaseCost / 1000000).toFixed(2) + 'M xtal'}
+                            </td>
+                            <td className="px-3 py-2 text-right bg-orange-50 whitespace-nowrap">
+                              {option.isProntera ? (
+                                <div>
+                                  <div className="font-bold text-blue-900 text-sm">Direct</div>
+                                  <div className="text-xs text-blue-700">
+                                    {option.stonesNeeded.toLocaleString()} stones
+                                  </div>
+                                  <div className="text-xs text-blue-600">No limit</div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div className="font-bold text-orange-900 text-base">
+                                    {option.daysToLevelSmelt.toFixed(1)} days
+                                  </div>
+                                  <div className="text-xs text-orange-700">
+                                    {option.stonesNeeded.toLocaleString()} stones
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              
+              <div className="mt-3 p-3 bg-white rounded-lg border border-purple-200">
+                <p className="text-xs text-purple-800">
+                  <strong> Tips:</strong> Green row = most efficient smelting option. Stones marked with "CoC " are included in daily CoC calculations above.
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Best Point Efficiency Summary */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-xl font-bold text-slate-800 mb-4"> Best Point Efficiency (Lowest Xtal per Point)</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+          {['Weapon (2h)', 'Weapon (1h)', 'Weapon (offhand)', 'Armor', 'Accessory'].map(equipType => {
+            const bestPointEfficiency = enchantCostData
+              .filter(row => row.type === equipType)
+              .sort((a, b) => a.xtalPerPoint - b.xtalPerPoint)[0];
+            
+            if (!bestPointEfficiency) return null;
+            
+            return (
+              <div key={equipType} className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 shadow-sm border-2 border-green-300">
+                <div className="text-xs font-semibold text-green-800 mb-1">{equipType}</div>
+                <div className="text-base font-bold text-green-900 mb-2">
+                   {bestPointEfficiency.city}
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-green-700">Xtal/Point:</span>
+                    <span className="font-bold text-green-900 text-sm">
+                      {bestPointEfficiency.xtalPerPoint.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-green-700">Points/Try:</span>
+                    <span className="font-bold text-green-900">
+                      {bestPointEfficiency.pointsPerAttempt}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-green-700">Cost/Try:</span>
+                    <span className="font-bold text-green-900">
+                      {bestPointEfficiency.smeltCost.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Best Gold Line Efficiency Summary */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-xl font-bold text-slate-800 mb-4"> Most Efficient Way to Get Gold Line by Equipment Type</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+          {['Weapon (2h)', 'Weapon (1h)', 'Weapon (offhand)', 'Armor', 'Accessory'].map(equipType => {
+            const bestOption = enchantCostData
+              .filter(row => row.type === equipType)
+              .sort((a, b) => a.expectedCostForGold - b.expectedCostForGold)[0];
+            
+            if (!bestOption) return null;
+            
+            return (
+              <div key={equipType} className="bg-white rounded-lg p-3 shadow-sm border border-slate-200">
+                <div className="text-xs font-semibold text-slate-500 mb-1">{equipType}</div>
+                <div className="text-base font-bold text-slate-800 mb-2">
+                   {bestOption.city}
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-600">Cost:</span>
+                    <span className="font-bold text-purple-600">
+                      {bestOption.expectedCostForGold < 10000000 
+                        ? bestOption.expectedCostForGold.toLocaleString() + ' xtal'
+                        : (bestOption.expectedCostForGold/1000000).toFixed(2) + 'M xtal'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-600">Gold:</span>
+                    <span className="font-bold text-blue-600">
+                      {(bestOption.goldProb * 100).toFixed(2)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-600">Rolls:</span>
+                    <span className="font-bold text-orange-600">
+                      {bestOption.expectedAttempts.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs border-t border-slate-200 pt-1">
+                    <span className="text-slate-600">Points/Try:</span>
+                    <span className="font-bold text-green-600">
+                      {bestOption.pointsPerAttempt}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-600">Xtal/Point:</span>
+                    <span className="font-bold text-green-600">
+                      {bestOption.xtalPerPoint.toFixed(1)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Material Cost Editor */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            <Edit2 className="w-5 h-5" />
+            Material Costs Editor
+          </h2>
+          {Object.keys(localOverrides).length > 0 && (
+            <button
+              onClick={handleResetPrices}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
+            >
+              Reset to Defaults
+            </button>
+          )}
+        </div>
+        <p className="text-sm text-slate-600 mb-4">
+          Edit prices to customize for your server. Changes are saved to your browser.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+          {editableMaterials.map(([material, cost]) => {
+            const isEdited = localOverrides.hasOwnProperty(material);
+            
+            return (
+              <div key={material} className={`flex items-center gap-2 p-2 rounded border ${
+                isEdited ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'
+              }`}>
+                {editingMaterial === material ? (
+                  <>
+                    <input
+                      type="number"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="flex-1 px-2 py-1 border border-blue-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      autoFocus
+                      onKeyPress={(e) => e.key === 'Enter' && handleSaveEdit()}
+                    />
+                    <button
+                      onClick={handleSaveEdit}
+                      className="px-2 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+                    >
+                      
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="px-2 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+                    >
+                      
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm text-slate-700 truncate" title={material}>
+                      {material}
+                      {isEdited && <span className="ml-1 text-xs text-amber-600">*</span>}
+                    </span>
+                    <span className="font-semibold text-slate-900 min-w-[60px] text-right">
+                      {cost.toLocaleString()} xtal
+                    </span>
+                    <button
+                      onClick={() => handleEditClick(material)}
+                      className="p-1 hover:bg-blue-100 rounded transition-colors"
+                      title="Edit cost"
+                    >
+                      <Edit2 className="w-4 h-4 text-blue-600" />
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {Object.keys(localOverrides).length > 0 && (
+          <p className="text-xs text-amber-700 mt-3">
+            * = Edited price (different from default)
+          </p>
+        )}
+      </div>
+
+      {/* Cost Comparison Table */}
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-600">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5" />
+            Enchant Cost Comparison with Gold Line Probability
+          </h2>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-100">
+              <tr>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-700">City</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-700">Type</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-700">Stone</th>
+                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-700">Lvl</th>
+                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-700">Gold%</th>
+                <th className="px-3 py-3 text-right text-xs font-semibold text-slate-700">
+                  <ShoppingCart className="w-4 h-4 inline" /> Purchase
+                </th>
+                <th className="px-3 py-3 text-right text-xs font-semibold text-slate-700 bg-green-50">
+                  <Hammer className="w-4 h-4 inline" /> Smelt
+                </th>
+                <th className="px-3 py-3 text-right text-xs font-semibold text-slate-700 bg-green-50">Savings<br/>(Purchase vs Smelt)</th>
+                <th className="px-3 py-3 text-right text-xs font-semibold text-slate-700 bg-amber-50">CoC Cost<br/>(5 stones max)</th>
+                <th className="px-3 py-3 text-right text-xs font-semibold text-slate-700 bg-amber-50">CoC Savings<br/>vs Purchase</th>
+                <th className="px-3 py-3 text-right text-xs font-semibold text-slate-700 bg-green-50">Smelt Xtal<br/>per Point<br/>(EXP Efficiency)</th>
+                <th className="px-3 py-3 text-right text-xs font-semibold text-slate-700">Expected Rolls<br/>for Gold</th>
+                <th className="px-3 py-3 text-right text-xs font-semibold text-slate-700">Expected Cost<br/>for Gold Line</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 text-sm">
+              {enchantCostData.map((row, idx) => {
+                const isCheaper = row.smeltCost < row.purchaseCost;
+                const isMoreExpensive = row.smeltCost > row.purchaseCost;
+                
+                return (
+                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-3 py-2 font-medium text-slate-900">{row.city}</td>
+                    <td className="px-3 py-2 text-slate-700">{row.type}</td>
+                    <td className="px-3 py-2 text-slate-700 text-xs">{row.stone}</td>
+                    <td className="px-3 py-2 text-center text-slate-700">{row.currentLevel}</td>
+                    <td className="px-3 py-2 text-center font-semibold text-blue-600">
+                      {(row.goldProb * 100).toFixed(2)}%
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold text-slate-900">
+                      {row.purchaseCost.toLocaleString()} xtal
+                    </td>
+                    <td className={`px-3 py-2 text-right font-semibold bg-green-50 ${
+                      isCheaper ? 'text-green-600' : isMoreExpensive ? 'text-red-600' : 'text-slate-900'
+                    }`}>
+                      {row.smeltCost.toLocaleString()} xtal
+                    </td>
+                    <td className="px-3 py-2 text-right bg-green-50">
+                      <div className="flex flex-col items-end">
+                        <span className={`font-bold text-xs ${
+                          isCheaper ? 'text-green-600' : isMoreExpensive ? 'text-red-600' : 'text-slate-500'
+                        }`}>
+                          {isCheaper ? '' : isMoreExpensive ? '' : '='} {Math.abs(row.savings).toLocaleString()} xtal
+                        </span>
+                        <span className={`text-xs ${
+                          isCheaper ? 'text-green-600' : isMoreExpensive ? 'text-red-600' : 'text-slate-500'
+                        }`}>
+                          ({Math.abs(row.savingsPct).toFixed(0)}%)
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-right bg-amber-50">
+                      <div className="flex flex-col items-end">
+                        {row.cocCoinCost > 0 ? (
+                          <>
+                            <span className="font-semibold text-amber-700 text-xs">
+                              {row.cocCoinCost} CoC
+                            </span>
+                            <span className="font-semibold text-slate-700">
+                              {row.cocXtalCost.toLocaleString()} xtal
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">N/A</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-right bg-amber-50">
+                      <div className="flex flex-col items-end">
+                        {row.cocCoinCost > 0 ? (
+                          <>
+                            <span className={`font-bold text-xs ${
+                              row.cocSavingsVsPurchase > 0 ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {row.cocSavingsVsPurchase > 0 ? '' : ''} {Math.abs(row.cocSavingsVsPurchase).toLocaleString()} xtal
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              vs Purchase
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">N/A</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-right bg-green-50">
+                      <span className="font-semibold text-green-700">
+                        {row.xtalPerPoint < 10000 ? row.xtalPerPoint.toFixed(1) : (row.xtalPerPoint/1000).toFixed(1) + 'K'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <span className="font-bold text-orange-600">
+                        {row.expectedAttempts.toFixed(1)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <span className="font-bold text-purple-600">
+                        {row.expectedCostForGold < 10000000 ? row.expectedCostForGold.toLocaleString() : (row.expectedCostForGold/1000000).toFixed(1) + 'M'} xtal
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+        <h3 className="text-sm font-bold text-slate-800 mb-2"> Changelog</h3>
+        <div className="space-y-2 text-xs text-slate-600">
+          <div>
+            <span className="font-semibold text-slate-700">v1.3.0</span> (2025-02-04)
+            <ul className="ml-4 mt-1 list-disc">
+              <li>Added Google Sheets integration for live material cost updates</li>
+              <li>Automatic fallback to backup data if Google Sheets unavailable</li>
+              <li>Data source indicator showing whether using live or backup data</li>
+              <li>Updated all material costs to latest market prices</li>
+            </ul>
+          </div>
+          <div>
+            <span className="font-semibold text-slate-700">v1.2.0</span> (2025-01-20)
+            <ul className="ml-4 mt-1 list-disc">
+              <li>Added stone count display for Prontera in leveling table</li>
+              <li>Added version tracking and changelog</li>
+            </ul>
+          </div>
+          <div>
+            <span className="font-semibold text-slate-700">v1.1.0</span> (2025-01-19)
+            <ul className="ml-4 mt-1 list-disc">
+              <li>Added daily CoC stone purchase tracking</li>
+              <li>Added combined daily CoC leveling calculations</li>
+              <li>Added localStorage persistence for all user settings</li>
+            </ul>
+          </div>
+          <div>
+            <span className="font-semibold text-slate-700">v1.0.0</span> (2025-01-18)
+            <ul className="ml-4 mt-1 list-disc">
+              <li>Initial release with cost comparison across all cities</li>
+              <li>Added material cost editor</li>
+              <li>Added leveling cost breakdown by equipment type</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-slate-700">
+          <strong> Tips:</strong> Green = smelting cheaper than purchase. Gold% varies by level (higher levels = lower rates in most cities). 
+          "Expected Cost for Gold Line" shows total crystals needed on average to get one gold enchantment at your current level.
+          <span className="block mt-2 text-amber-700"><strong>Corporation Coins (CoC):</strong> Alternative way to acquire stones. Each stone type can be purchased up to 5 times per day. CoC columns show cost for 5 stones and savings vs direct purchase. Check the leveling table above for detailed cost comparisons.</span>
+          <span className="block mt-2 text-green-700"><strong>Smelt Xtal per Point (EXP Efficiency):</strong> Shows how many crystals you spend per experience point gained when smelting stones. Lower is better! This helps you find the most cost-efficient city for leveling up. For example, 735 xtal/point means you spend 735 crystals per point of experience.</span>
+          <span className="block mt-2 text-slate-700"><strong>Points System:</strong> Each city and equipment type awards different points. Higher-tier cities give more points (Glast Heim: 32, Geffen: 16, Payon: 8, Alberta: 4, Morroc: 2, Izlude: 1). Weapon types have multipliers (2h: 3x, 1h: 2x, offhand: 1x).</span>
+          <span className="block mt-2 text-purple-700"><strong>Infinity Data Storage:</strong> Your enchant levels, EXP progress, and CoC selections are saved to your browser. Edit any material price to customize for your server - changes are saved locally.</span>
+        </p>
+      </div>
+    </div>
+  );
+};
+
+
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<EnchantmentCostCalculator />);
+    </script>
+</body>
+</html>
